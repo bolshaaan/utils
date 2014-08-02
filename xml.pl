@@ -15,13 +15,22 @@ use Encode qw(decode_utf8 encode_utf8);
 
 my $file = shift @ARGV;
 
-
 my $dbh = _connect();
 my $ref = XMLin($file)->{item};
 
-my $cats = {};
-foreach my  $t (values %$ref) {
+#use Data::Dumper;
+#print Dumper $ref;
+#exit;
 
+my @ins_product = ();
+my @ins_product_to_category = ();
+my @ins_product_to_store = ();
+my @ins_product_description = ();
+my @ins_product_image = ();
+my $cats = {};
+foreach my  $name (keys %$ref) {
+
+	my $t = $ref->{$name};
 
 	my $r1 = ref $t->{rubric1} eq 'HASH' ? "" : $t->{rubric1};
 	my $r2 = ref $t->{rubric2} eq 'HASH' ? "" : $t->{rubric2};
@@ -33,6 +42,51 @@ foreach my  $t (values %$ref) {
 
 	$cats->{ $r1 }->{ $r2 }->{  $r3 } = undef;
 #	print  $t->{rubric1} . " |  " . $t->{rubric2} . " |  " .  $t->{ rubric3 } . "\n";
+
+	push(@ins_product_image, "(" . 
+		join(',',
+			$t->{id},
+			$dbh->quote( 'data/store/' . $t->{photo} ),
+		) .
+	")");
+
+
+	push(@ins_product_to_store, "(" . 
+		join(',',
+			$t->{id},
+			0
+		) .
+	")");
+
+	push(@ins_product_to_category, "(" . 
+		join(',',
+			$t->{id},
+			$t->{section},
+		) .
+	")");
+
+
+	push(@ins_product_description, "(" . 
+		join(',',
+			$t->{id},
+			1, #language_id
+#			$dbh->quote( $name =~ s/^.*?\///r ),
+			$dbh->quote( $name ),
+			$dbh->quote( $t->{description} ),
+		) .
+	")");
+
+
+	push(@ins_product, "(" . 
+		join(',',
+			$t->{id},
+#			$dbh->quote( $t->{image} ),
+			$dbh->quote( 'data/store/' . $t->{photo} ),
+			$dbh->quote( $t->{cost}  ),
+			1,
+			$t->{qty},
+		)
+	. ")");
 }
 
 
@@ -41,6 +95,7 @@ my @ins_cat_desc = ();
 my @ins_cat = ();
 my @ins_cat_to_store = ();
 my @ins_cat_path = ();
+
 my $i = 0;
 sub _rc {
 	my $parent = shift;
@@ -80,74 +135,92 @@ _rc(0, $cats);
 #print Dumper \@ins_cat_to_store;
 #
 #exit 0;
-_u_category_description($dbh, \@ins_cat_desc);
-_u_category($dbh, \@ins_cat);
-_u_category_to_store($dbh, \@ins_cat_to_store);
-_u_category_path($dbh, \@ins_cat_path);
+
+_u_product($dbh, \@ins_product);
+_u_product_description($dbh, \@ins_product_description);
+_u_product_to_category($dbh, \@ins_product_to_category);
+_u_product_image($dbh, \@ins_product_image);
+_u_product_to_store($dbh, \@ins_product_to_store);
 
 exit(0); 
 
-func _u_category_path($dbh, $ins_cat_path) {
+func _u_product_to_store($dbh, $ins_product_to_store) {
 
-	$dbh->do("truncate table oc_category_path");
-
-	$dbh->do("
-		insert into
-			oc_category_path(
-				category_id,
-				path_id,
-				level
-			)
-		values
-			" .  join(',' , @$ins_cat_path)  . "
-	");
-}
-
-func _u_category_to_store($dbh, $ins_cat_to_store) {
-
-	$dbh->do("truncate table oc_category_to_store");
+	$dbh->do("truncate table oc_product_to_store");
 
 	$dbh->do("
 		insert into
-			oc_category_to_store(
-				category_id,
+			oc_product_to_store(
+				product_id,
 				store_id
 			)
 		values
-			" .  join(',' , @$ins_cat_to_store)  . "
+			" .  join(',' , @$ins_product_to_store )  . "
 	");
 }
+func _u_product_to_category($dbh, $ins_product_to_category) {
 
-func _u_category($dbh, $ins_cat) {
-
-	$dbh->do("truncate table oc_category");
+	$dbh->do("truncate table oc_product_to_category");
 
 	$dbh->do("
 		insert into
-			oc_category(
-				category_id,
-				parent_id,
-				status
+			oc_product_to_category(
+				product_id,
+				category_id
 			)
 		values
-			" .  join(',' , @$ins_cat )  . "
+			" .  join(',' , @$ins_product_to_category )  . "
 	");
 }
 
+func _u_product($dbh, $ins_product) {
 
-func _u_category_description($dbh, $ins_cat_desc) {
-
-	$dbh->do("truncate table oc_category_description");
+	$dbh->do("truncate table oc_product");
 
 	$dbh->do("
 		insert into
-			oc_category_description(
-				category_id,
+			oc_product(
+				product_id,
+				image,
+				price,
+				status,
+				quantity
+			)
+		values
+			" .  join(',' , @$ins_product )  . "
+	");
+}
+
+func _u_product_description($dbh, $ins_product_description) {
+
+	$dbh->do("truncate table oc_product_description");
+
+	$dbh->do("
+		insert into
+			oc_product_description(
+				product_id,
+				language_id,
 				name,
-				language_id
+				description
 			)
 		values
-			" .  join(',' , @$ins_cat_desc )  . "
+			" .  join(',' , @$ins_product_description )  . "
+	");
+}
+
+
+func _u_product_image($dbh, $ins_product_image) {
+
+	$dbh->do("truncate table oc_product_image");
+
+	$dbh->do("
+		insert into
+			oc_product_image(
+				product_id,
+				image
+			)
+		values
+			" .  join(',' , @$ins_product_image)  . "
 	");
 }
 
