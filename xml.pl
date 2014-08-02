@@ -72,7 +72,7 @@ foreach my  $name (keys %$ref) {
 			1, #language_id
 #			$dbh->quote( $name =~ s/^.*?\///r ),
 			$dbh->quote( $name ),
-			$dbh->quote( $t->{description} ),
+			$dbh->quote( ref $t->{description} ? "Нету описания" : $t->{description} ),
 		) .
 	")");
 
@@ -82,7 +82,7 @@ foreach my  $name (keys %$ref) {
 			$t->{id},
 #			$dbh->quote( $t->{image} ),
 			$dbh->quote( 'data/store/' . $t->{photo} ),
-			$dbh->quote( $t->{cost}  ),
+			$dbh->quote( $t->{cost} =~ s/\s+//gr  ),
 			1,
 			$t->{qty},
 		)
